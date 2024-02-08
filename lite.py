@@ -1,16 +1,16 @@
-from dataclasses import dataclass
-
 import base64
-import httpx
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Optional, List
+
+import httpx
 from litestar import Litestar, Request, Response, get, post
 from litestar.connection import ASGIConnection
 from litestar.exceptions import HTTPException
 from litestar.openapi.config import OpenAPIConfig
 from litestar.security.jwt import OAuth2Login, OAuth2PasswordBearerAuth, Token
-from pydantic import BaseModel
 from okta_jwt.jwt import validate_token as validate_locally
+from pydantic import BaseModel
 from starlette.config import Config
 
 
@@ -66,6 +66,7 @@ oauth2_auth = OAuth2PasswordBearerAuth[OAuthSchema](
     token_url="/login",
     # we are specifying which endpoints should be excluded from authentication. In this case the login endpoint
     # and our openAPI docs.
+    # the exclude values are regular expressions
     exclude=["/login", "/schema"],
 )
 

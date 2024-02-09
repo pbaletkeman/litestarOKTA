@@ -3,10 +3,11 @@ This is a bare bones example which implements OKTA to secure Litestar APIs.
 See https://dev.to/pbaletkeman/secure-litestar-apis-with-okta-4b8-temp-slug-7126418 for a write up on this.
 
 
-Run command:
+#### Run command: ####
+
 litestar --app lite:app run
 
-OpenAPI Sites:
+#### OpenAPI Sites: ####
 - http://127.0.0.1:8000/schema/
   - default site (redoc implementation)
 - http://127.0.0.1:8000/schema/swagger

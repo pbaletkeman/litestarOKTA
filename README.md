@@ -1,6 +1,6 @@
 ### Sample Litestar OKTA Python App ###
 This is a barebones example which implements OKTA to secure Litestar APIs.
-See https://dev.to/pbaletkeman/secure-litestar-apis-with-okta-4b8-temp-slug-7126418 for a write up on this.
+See https://dev.to/pbaletkeman/secure-litestar-apis-with-okta-570l for a write up on this.
 
 #### Run command: ####
 

@@ -37,4 +37,4 @@ and remove the
 ```if data.client_id and data.client_secret:```
 
 checks.
-If you do this then you can use the `Authorize` button in swagger.
+If you do this then you can use the `Authorize` button in swagger as well in other integration/setups.

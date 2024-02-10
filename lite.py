@@ -1,13 +1,15 @@
 import base64
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Annotated
 
 import httpx
 from litestar import Litestar, Request, Response, get, post
 from litestar.connection import ASGIConnection
+from litestar.enums import RequestEncodingType
 from litestar.exceptions import HTTPException
 from litestar.openapi.config import OpenAPIConfig
+from litestar.params import Body
 from litestar.security.jwt import OAuth2Login, OAuth2PasswordBearerAuth, Token
 from okta_jwt.jwt import validate_token as validate_locally
 from pydantic import BaseModel
@@ -67,7 +69,7 @@ oauth2_auth = OAuth2PasswordBearerAuth[OAuthSchema](
     # we are specifying which endpoints should be excluded from authentication. In this case the login endpoint
     # and our openAPI docs.
     # the exclude values are regular expressions
-    exclude=["/login", "/schema"],
+    exclude=["/login", "/schema", "/form-login", "/json-login"],
 )
 
 
@@ -178,20 +180,9 @@ async def read_items() -> List[Item]:
     ]
 
 
-# Given an instance of 'OAuth2PasswordBearerAuth' we can create a login handler function:
-@post("/login")
-async def login_handler(data: Credentials, request: "Request[Any, Any, Any]") -> "Response[OAuth2Login]":
-    # if we do not define a response body, the login process will return a standard OAuth2 login response.
-    # Note the `Response[OAuth2Login]` return type.
-
-    # you can do whatever you want to update the response instance here
-    # e.g. response.set_cookie(...)
-    if data.client_id and data.client_secret:
-        # create the auth header
-        auth_header = 'Basic ' + str(base64.b64encode((data.client_id + ':' + data.client_secret)
-                                                      .encode('ascii')))[2:-1]
-    else:
-        auth_header = request.headers['authorization']
+async def create_auth_token(auth_header):
+    retval: any = ''
+    print(config('OKTA_TOKEN'))
     token = retrieve_token(
         auth_header,
         config('OKTA_TOKEN'),
@@ -200,9 +191,64 @@ async def login_handler(data: Credentials, request: "Request[Any, Any, Any]") ->
     if validate_remote(token.access_token):
         # this works fine as there is only one valid user controlled by the admins
         API_USER_DB[str(token.access_token)] = token
-        return oauth2_auth.login(identifier=token.access_token, token_unique_jwt_id=token.access_token,
-                                 token_issuer=config('OKTA_ISSUER'), token_audience=config('OKTA_AUDIENCE'),
-                                 token_expiration=timedelta(seconds=token.expires_in))
+        retval = oauth2_auth.login(identifier=token.access_token, token_unique_jwt_id=token.access_token,
+                                   token_issuer=config('OKTA_ISSUER'), token_audience=config('OKTA_AUDIENCE'),
+                                   token_expiration=timedelta(seconds=token.expires_in))
+    return retval
+
+
+@post("/json-login")
+async def json_login_handler(data: Credentials) -> "Response[OAuth2Login]":
+    """
+    Log into the system using form inputs
+    :param data: user json input
+    :return: Bearer Token
+    """
+    # if we do not define a response body, the login process will return a standard OAuth2 login response.
+    # Note the `Response[OAuth2Login]` return type.
+
+    # you can do whatever you want to update the response instance here
+    # e.g. response.set_cookie(...)
+    auth_header = 'Basic ' + str(
+        base64.b64encode((data.client_id.encode() + ':'.encode() + data.client_secret.encode())))[1:-2]
+
+    return await create_auth_token(auth_header)
+
+
+@post("/form-login")
+async def form_login_handler(data: Annotated[Credentials, Body(media_type=RequestEncodingType.MULTI_PART)]) \
+        -> "Response[OAuth2Login]":
+    """
+    Log into the system using form inputs
+    :param data: user form input
+    :return: Bearer Token
+    """
+    # if we do not define a response body, the login process will return a standard OAuth2 login response.
+    # Note the `Response[OAuth2Login]` return type.
+
+    # you can do whatever you want to update the response instance here
+    # e.g. response.set_cookie(...)
+    auth_header = 'Basic ' + str(
+        base64.b64encode((data.client_id.encode() + ':'.encode() + data.client_secret.encode())))[2:-2]
+
+    return await create_auth_token(auth_header)
+
+
+# Given an instance of 'OAuth2PasswordBearerAuth' we can create a login handler function:
+@post("/login")
+async def login_handler(request: "Request[Any, Any, Any]") -> "Response[OAuth2Login]":
+    """
+    Log into the system using only Auth Header
+    :param request: request form
+    :return:  Bearer Token
+    """
+    # if we do not define a response body, the login process will return a standard OAuth2 login response.
+    # Note the `Response[OAuth2Login]` return type.
+
+    # you can do whatever you want to update the response instance here
+    # e.g. response.set_cookie(...)
+    auth_header = request.headers['authorization']
+    return await create_auth_token(auth_header)
 
 
 # We create our OpenAPIConfig as usual - the JWT security scheme will be injected into it.
@@ -214,7 +260,7 @@ openapi_config = OpenAPIConfig(
 # We initialize the app instance and pass the oauth2_auth 'on_app_init' handler to the constructor.
 # The hook handler will inject the JWT middleware and openapi configuration into the app.
 app = Litestar(
-    route_handlers=[login_handler, read_items],
+    route_handlers=[login_handler, form_login_handler, json_login_handler, read_items],
     on_app_init=[oauth2_auth.on_app_init],
     openapi_config=openapi_config,
 )
